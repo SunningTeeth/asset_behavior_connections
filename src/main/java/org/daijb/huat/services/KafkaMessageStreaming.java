@@ -1,13 +1,8 @@
 package org.daijb.huat.services;
 
 import com.alibaba.fastjson.JSON;
-import com.alibaba.fastjson.JSONObject;
-import com.alibaba.fastjson.serializer.SerializerFeature;
-import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.functions.FilterFunction;
-import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.serialization.SimpleStringSchema;
-import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.streaming.api.TimeCharacteristic;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
@@ -21,8 +16,8 @@ import org.apache.flink.table.functions.ScalarFunction;
 import org.apache.flink.util.Collector;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.producer.ProducerConfig;
-import org.daijb.huat.services.entity.AssetBehaviorSink;
 import org.daijb.huat.services.entity.FlowEntity;
+import org.daijb.huat.services.utils.JavaKafkaConfigurer;
 import org.daijb.huat.services.utils.StringUtil;
 
 import java.sql.Timestamp;
@@ -40,10 +35,10 @@ public class KafkaMessageStreaming {
 
     public static void main(String[] args) throws Exception {
         KafkaMessageStreaming kafkaMessageStreaming = new KafkaMessageStreaming();
-        kafkaMessageStreaming.run();
+        kafkaMessageStreaming.run(args);
     }
 
-    public void run() throws Exception {
+    public void run(String[] args) throws Exception {
         StreamExecutionEnvironment streamExecutionEnvironment = StreamExecutionEnvironment.getExecutionEnvironment();
         streamExecutionEnvironment.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
 
@@ -52,11 +47,11 @@ public class KafkaMessageStreaming {
         StreamTableEnvironment streamTableEnvironment = StreamTableEnvironment.create(streamExecutionEnvironment, fsSettings);
 
         //加载kafka.properties
-        Properties kafkaProperties = JavaKafkaConfigurer.getKafkaProperties();
+        Properties kafkaProperties = JavaKafkaConfigurer.getKafkaProperties(args);
 
         Properties props = new Properties();
         props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaProperties.getProperty("bootstrap.servers"));
-        //可更加实际拉去数据和客户的版本等设置此值，默认30s
+        //可g根据实际拉取数据等设置此值，默认30s
         props.put(ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG, 30000);
         //每次poll的最大数量
         //注意该值不要改得太大，如果poll太多数据，而不能在下次poll之前消费完，则会触发一次负载均衡，产生卡顿
@@ -88,13 +83,13 @@ public class KafkaMessageStreaming {
         /**
          * 转换数据格式
          */
-        DataStream<JSONObject> kafkaJson = filterSource.map(new MapFunction<FlowEntity, JSONObject>() {
+        /*DataStream<JSONObject> kafkaJson = filterSource.map(new MapFunction<FlowEntity, JSONObject>() {
             @Override
             public JSONObject map(FlowEntity flowEntity) throws Exception {
                 String jsonStr = JSONObject.toJSONString(flowEntity, SerializerFeature.PrettyFormat);
                 return JSONObject.parseObject(jsonStr);
             }
-        });
+        });*/
 
         // 创建临时试图表
         streamTableEnvironment.createTemporaryView("kafka_source", filterSource, "srcId,srcIp,dstId,dstIp,areaId,flowId,rTime,rowtime.rowtime");
@@ -120,17 +115,15 @@ public class KafkaMessageStreaming {
         /**
          * 查找具有连接关系的数据
          */
-        DataStream<FlowEntity> filter = flowEntityDataStream.filter(new FilterFunction<FlowEntity>() {
+        flowEntityDataStream.filter(new FilterFunction<FlowEntity>() {
             @Override
             public boolean filter(FlowEntity flowEntity) throws Exception {
                 return assetConnectionExecutive.assetBehaviorFilter(flowEntity);
             }
-        });
-        //.addSink(new MySqlTwoPhaseCommitSink()).name("MySqlTwoPhaseCommitSink");
+        }).addSink(new MySqlTwoPhaseCommitSink()).name("MySqlTwoPhaseCommitSink");
 
         streamExecutionEnvironment.execute("kafka message streaming start ....");
     }
-
 
     /**
      * 解析kafka数据

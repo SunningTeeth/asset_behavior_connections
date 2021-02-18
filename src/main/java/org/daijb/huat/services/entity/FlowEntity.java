@@ -1,5 +1,6 @@
 package org.daijb.huat.services.entity;
 
+import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 
 /**
@@ -16,17 +17,21 @@ public class FlowEntity {
     private Integer areaId;
     private String flowId;
 
+    //==========为方便sink====
+    private String assetId;
+    private String assetIp;
+    private JSONArray dstIpSegment;
+    private String modelingParamId;
+    private String time;
+
     public FlowEntity() {
     }
 
-    public FlowEntity(String srcId, String srcIp, String dstId, String dstIP, long rTime, Integer areaId, String flowId) {
-        this.srcId = srcId;
-        this.srcIp = srcIp;
-        this.dstId = dstId;
-        this.dstIp = dstIP;
-        this.rTime = rTime;
-        this.areaId = areaId;
-        this.flowId = flowId;
+    public FlowEntity(String assetId, String assetIp, JSONArray dstIpSegment, String modelingParamId) {
+        this.assetId = assetId;
+        this.assetIp = assetIp;
+        this.dstIpSegment = dstIpSegment;
+        this.modelingParamId = modelingParamId;
     }
 
     public String getSrcId() {
@@ -83,6 +88,46 @@ public class FlowEntity {
 
     public void setFlowId(String flowId) {
         this.flowId = flowId;
+    }
+
+    public String getAssetId() {
+        return assetId;
+    }
+
+    public void setAssetId(String assetId) {
+        this.assetId = assetId;
+    }
+
+    public String getAssetIp() {
+        return assetIp;
+    }
+
+    public void setAssetIp(String assetIp) {
+        this.assetIp = assetIp;
+    }
+
+    public JSONArray getDstIpSegment() {
+        return dstIpSegment;
+    }
+
+    public void setDstIpSegment(JSONArray dstIpSegment) {
+        this.dstIpSegment = dstIpSegment;
+    }
+
+    public String getModelingParamId() {
+        return modelingParamId;
+    }
+
+    public void setModelingParamId(String modelingParamId) {
+        this.modelingParamId = modelingParamId;
+    }
+
+    public String getTime() {
+        return time;
+    }
+
+    public void setTime(String time) {
+        this.time = time;
     }
 
     public JSONObject toJSONObject() {

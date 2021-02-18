@@ -1,7 +1,6 @@
 package org.daijb.huat.services.entity;
 
 import org.json.simple.JSONArray;
-import org.json.simple.JSONObject;
 
 /**
  * @author daijb
@@ -15,6 +14,7 @@ import org.json.simple.JSONObject;
  * `time` datetime(0) NULL DEFAULT NULL COMMENT '数据插入时间',
  * PRIMARY KEY (`id`) USING BTREE
  * ) ENGINE = InnoDB CHARACTER SET = utf8 COLLATE = utf8_general_ci ROW_FORMAT = Dynamic;
+ * @deprecated
  */
 public class AssetBehaviorSink {
 

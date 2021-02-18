@@ -1,10 +1,5 @@
 package org.daijb.huat.services;
 
-import org.apache.flink.annotation.Public;
-import org.daijb.huat.services.utils.DBConnectUtil;
-
-import java.sql.Connection;
-
 /**
  * @author daijb
  * @date 2021/2/18 17:40

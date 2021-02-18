@@ -23,17 +23,6 @@ public class AssetBehaviorBuildModelUtil implements AssetBehaviorConstants {
 
     private static Map<String, Object> modelingParams;
 
-   /* public static void main(String[] args) throws Exception {
-        AssetBehaviorBuildModelUtil assetBehaviorBuildModelUtil = new AssetBehaviorBuildModelUtil();
-        for (int i = 0; i < 100; i++) {
-            int key = assetBehaviorBuildModelUtil.calculateSegmentKey();
-            if (key <= 0) {
-                return;
-            }
-            System.out.println(key);
-        }
-    }*/
-
     static {
         try {
             modelingParams = buildModelingParams();

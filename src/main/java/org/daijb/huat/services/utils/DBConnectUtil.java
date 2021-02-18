@@ -1,12 +1,10 @@
 package org.daijb.huat.services.utils;
 
 import com.mchange.v2.c3p0.ComboPooledDataSource;
-import org.daijb.huat.services.AssetConnectionExecutive;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.SQLException;
 
 /**
@@ -16,12 +14,6 @@ import java.sql.SQLException;
 public class DBConnectUtil {
 
     private static final Logger logger = LoggerFactory.getLogger(DBConnectUtil.class);
-
-    private static final String addr = "192.168.3.188";
-
-    private static final String username = "root";
-
-    private static final String password = "Admin@123";
 
     private static volatile Connection connection = null;
 
@@ -34,6 +26,9 @@ public class DBConnectUtil {
             ComboPooledDataSource comboPooledDataSource = new ComboPooledDataSource();
             //设置数据源
             comboPooledDataSource.setDriverClass("com.mysql.jdbc.Driver");
+            String addr = SystemUtil.getHostIp();
+            String username = SystemUtil.getMysqlUser();
+            String password = SystemUtil.getMysqlPassword();
             comboPooledDataSource.setJdbcUrl("jdbc:mysql://" + addr + ":3306/csp?useEncoding=true&characterEncoding=utf-8&serverTimezone=UTC");
             comboPooledDataSource.setUser(username);
             comboPooledDataSource.setPassword(password);

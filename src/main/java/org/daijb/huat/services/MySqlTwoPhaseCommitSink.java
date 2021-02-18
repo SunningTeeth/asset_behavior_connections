@@ -4,10 +4,9 @@ import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.typeutils.base.VoidSerializer;
 import org.apache.flink.api.java.typeutils.runtime.kryo.KryoSerializer;
 import org.apache.flink.streaming.api.functions.sink.TwoPhaseCommitSinkFunction;
-import org.daijb.huat.services.entity.AssetBehaviorSink;
+import org.daijb.huat.services.entity.FlowEntity;
 import org.daijb.huat.services.utils.DBConnectUtil;
 import org.json.simple.JSONArray;
-import org.json.simple.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -30,7 +29,7 @@ import java.time.LocalDateTime;
  * 来源：简书
  * 著作权归作者所有。商业转载请联系作者获得授权，非商业转载请注明出处。
  */
-public class MySqlTwoPhaseCommitSink extends TwoPhaseCommitSinkFunction<org.daijb.huat.services.entity.AssetBehaviorSink, Connection, Void> {
+public class MySqlTwoPhaseCommitSink extends TwoPhaseCommitSinkFunction<org.daijb.huat.services.entity.FlowEntity, Connection, Void> {
 
     private static final Logger logger = LoggerFactory.getLogger(MySqlTwoPhaseCommitSink.class);
 
@@ -42,18 +41,18 @@ public class MySqlTwoPhaseCommitSink extends TwoPhaseCommitSinkFunction<org.daij
      * 执行数据库入库操作  task初始化的时候调用
      */
     @Override
-    protected void invoke(Connection connection, AssetBehaviorSink assetBehaviorEntity, Context context) throws Exception {
+    protected void invoke(Connection connection, FlowEntity flowEntity, Context context) throws Exception {
         logger.info("start invoke...");
-        String modelingParamId = assetBehaviorEntity.getModelingParamId();
-        String srcId = assetBehaviorEntity.getSrcId();
-        String srcIp = assetBehaviorEntity.getSrcIp();
-        JSONArray dstIpSegment = assetBehaviorEntity.getDstIpSegment();
+        String modelingParamId = flowEntity.getModelingParamId();
+        String assetId = flowEntity.getAssetId();
+        String assetIp = flowEntity.getAssetIp();
+        JSONArray dstIpSegment = flowEntity.getDstIpSegment();
         String sql = "insert into `model_result_asset_behavior_relation` (`id`,`modeling_params_id`,`src_id`,`src_ip`,`dst_ip_segment`,`time`) values (?,?,?,?,?,?)";
         PreparedStatement ps = connection.prepareStatement(sql);
         ps.setInt(1, 98989);
         ps.setString(2, modelingParamId);
-        ps.setString(3, srcId);
-        ps.setString(4, srcIp);
+        ps.setString(3, assetId);
+        ps.setString(4, assetIp);
         ps.setString(5, dstIpSegment.toJSONString());
         ps.setString(6, LocalDateTime.now().toString());
         //执行insert语句

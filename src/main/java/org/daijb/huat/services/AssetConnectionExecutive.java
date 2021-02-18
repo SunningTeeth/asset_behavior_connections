@@ -1,10 +1,8 @@
 package org.daijb.huat.services;
 
-import org.daijb.huat.services.entity.AssetBehaviorSink;
 import org.daijb.huat.services.entity.FlowEntity;
 import org.daijb.huat.services.utils.ConversionUtil;
 import org.daijb.huat.services.utils.DBConnectUtil;
-import org.daijb.huat.services.utils.StringUtil;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.json.simple.JSONValue;
@@ -42,7 +40,7 @@ public class AssetConnectionExecutive implements AssetBehaviorConstants, Seriali
      * key : 资产id
      * value : sink
      */
-    private ConcurrentMap<String, AssetBehaviorSink> allAssetBehaviorSink = new ConcurrentHashMap<>();
+    private ConcurrentMap<String, FlowEntity> allAssetBehaviorSink = new ConcurrentHashMap<>();
 
     /**
      * 需要定时更新
@@ -112,18 +110,18 @@ public class AssetConnectionExecutive implements AssetBehaviorConstants, Seriali
         return result;
     }
 
-    private void createEntityInfo(String srcId, String srcIp, JSONArray dstIpSegment0) {
+    private void createEntityInfo(String assetId, String assetIp, JSONArray dstIpSegment0) {
         if (modelingParams == null) {
             modelingParams = AssetBehaviorBuildModelUtil.getModelingParams();
         }
-        AssetBehaviorSink entity = allAssetBehaviorSink.get(srcId);
+        FlowEntity entity = allAssetBehaviorSink.get(assetId);
         if (entity == null) {
-            allAssetBehaviorSink.put(srcId, new AssetBehaviorSink(modelingParams.get(MODEL_ID).toString(), srcId, srcIp, dstIpSegment0));
+            allAssetBehaviorSink.put(assetId, new FlowEntity(assetId, assetIp, dstIpSegment0, modelingParams.get(MODEL_ID).toString()));
         } else {
             // 更新(多久更新)
             JSONArray dstIpSegment = entity.getDstIpSegment();
             dstIpSegment.addAll(dstIpSegment0);
-            allAssetBehaviorSink.put(srcId, new AssetBehaviorSink(modelingParams.get(MODEL_ID).toString(), srcId, srcIp, dstIpSegment));
+            allAssetBehaviorSink.put(assetId, new FlowEntity(assetId, assetIp, dstIpSegment, modelingParams.get(MODEL_ID).toString()));
         }
 
     }
@@ -143,7 +141,6 @@ public class AssetConnectionExecutive implements AssetBehaviorConstants, Seriali
             logger.error("model entity group key is not exist");
             throw new Exception("model entity group key is not exist");
         }
-        //grp_75Tb5NMJDoEzCB3JxXcYgF,grp_75Tb5NMJDoFj1xdjMg9mL8
         String[] groupIds = ConversionUtil.toString(modelEntityGroup).split(",");
         whereTxt.append("(");
         StringBuilder tempTxt = new StringBuilder();
@@ -155,16 +152,11 @@ public class AssetConnectionExecutive implements AssetBehaviorConstants, Seriali
             temp = temp.substring(0, temp.length() - 1);
         }
         whereTxt.append(temp).append(");");
-        /*if (whereTxt.length() <= 0) {
-            logger.error("model entity group value is null");
-            throw new Exception("model entity group value is nul");
-        }*/
         ResultSet resultSet = statement.executeQuery("SELECT * FROM asset WHERE entity_groups in " + whereTxt.toString());
         while (resultSet.next()) {
             String entityId = resultSet.getString("entity_id");
             String assetIp = resultSet.getString("asset_ip");
             Integer areaId = ConversionUtil.toInteger(resultSet.getString("area_id"));
-            //String groupId = resultSet.getString("entity_groups");
             if (allGroupIps0.get(areaId) == null) {
                 Map<String, Set<String>> map = new HashMap<>();
                 Set<String> ips = new HashSet<>(getAssetOfIps(assetIp));
