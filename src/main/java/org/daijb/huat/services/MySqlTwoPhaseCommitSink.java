@@ -3,16 +3,17 @@ package org.daijb.huat.services;
 import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.typeutils.base.VoidSerializer;
 import org.apache.flink.api.java.typeutils.runtime.kryo.KryoSerializer;
-import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.databind.node.ObjectNode;
 import org.apache.flink.streaming.api.functions.sink.TwoPhaseCommitSinkFunction;
+import org.daijb.huat.services.entity.AssetBehaviorSink;
+import org.daijb.huat.services.utils.DBConnectUtil;
+import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
-import org.json.simple.JSONValue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
-import java.sql.Timestamp;
+import java.time.LocalDateTime;
 
 
 /**
@@ -29,7 +30,7 @@ import java.sql.Timestamp;
  * 来源：简书
  * 著作权归作者所有。商业转载请联系作者获得授权，非商业转载请注明出处。
  */
-public class MySqlTwoPhaseCommitSink extends TwoPhaseCommitSinkFunction<ObjectNode, Connection, Void> {
+public class MySqlTwoPhaseCommitSink extends TwoPhaseCommitSinkFunction<org.daijb.huat.services.entity.AssetBehaviorSink, Connection, Void> {
 
     private static final Logger logger = LoggerFactory.getLogger(MySqlTwoPhaseCommitSink.class);
 
@@ -39,30 +40,24 @@ public class MySqlTwoPhaseCommitSink extends TwoPhaseCommitSinkFunction<ObjectNo
 
     /**
      * 执行数据库入库操作  task初始化的时候调用
-     *
-     * @param connection
-     * @param objectNode
-     * @param context
-     * @throws Exception
      */
     @Override
-    protected void invoke(Connection connection, ObjectNode objectNode, Context context) throws Exception {
+    protected void invoke(Connection connection, AssetBehaviorSink assetBehaviorEntity, Context context) throws Exception {
         logger.info("start invoke...");
-        String valueStr = objectNode.get("value").toString();
-        JSONObject json = (JSONObject) JSONValue.parse(valueStr);
-        String value_str = (String) json.get("value");
-        String sql = "insert into `mysqlExactlyOnce_test` (`value`,`insert_time`) values (?,?)";
+        String modelingParamId = assetBehaviorEntity.getModelingParamId();
+        String srcId = assetBehaviorEntity.getSrcId();
+        String srcIp = assetBehaviorEntity.getSrcIp();
+        JSONArray dstIpSegment = assetBehaviorEntity.getDstIpSegment();
+        String sql = "insert into `model_result_asset_behavior_relation` (`id`,`modeling_params_id`,`src_id`,`src_ip`,`dst_ip_segment`,`time`) values (?,?,?,?,?,?)";
         PreparedStatement ps = connection.prepareStatement(sql);
-        ps.setString(1, value_str);
-        Timestamp value_time = new Timestamp(System.currentTimeMillis());
-        ps.setTimestamp(2, value_time);
-        logger.info("要插入的数据:{}--{}", value_str, value_time);
+        ps.setInt(1, 98989);
+        ps.setString(2, modelingParamId);
+        ps.setString(3, srcId);
+        ps.setString(4, srcIp);
+        ps.setString(5, dstIpSegment.toJSONString());
+        ps.setString(6, LocalDateTime.now().toString());
         //执行insert语句
         ps.execute();
-        //手动制造异常
-        if (Integer.parseInt(value_str) == 15) {
-            System.out.println(1 / 0);
-        }
     }
 
     /**

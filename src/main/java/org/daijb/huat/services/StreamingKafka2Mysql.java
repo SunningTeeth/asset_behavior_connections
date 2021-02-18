@@ -17,8 +17,6 @@ import java.util.Properties;
  */
 public class StreamingKafka2Mysql {
 
-    private static final String topic_ExactlyOnce = "mysql-exactly-Once-4";
-
     public static void main(String[] args) throws Exception {
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
 
@@ -54,7 +52,7 @@ public class StreamingKafka2Mysql {
         DataStreamSource<ObjectNode> streamSource = env.addSource(kafkaConsumer011);
         streamSource.print();
         //数据传输到下游
-        streamSource.addSink(new MySqlTwoPhaseCommitSink()).name("MySqlTwoPhaseCommitSink");
+        //streamSource.addSink(new MySqlTwoPhaseCommitSink()).name("MySqlTwoPhaseCommitSink");
         //触发执行
         env.execute(StreamingKafka2Mysql.class.getSimpleName());
     }

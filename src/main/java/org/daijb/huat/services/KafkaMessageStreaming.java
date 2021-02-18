@@ -2,9 +2,12 @@ package org.daijb.huat.services;
 
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
+import com.alibaba.fastjson.serializer.SerializerFeature;
+import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.functions.FilterFunction;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.serialization.SimpleStringSchema;
+import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.streaming.api.TimeCharacteristic;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
@@ -16,9 +19,9 @@ import org.apache.flink.table.api.Table;
 import org.apache.flink.table.api.java.StreamTableEnvironment;
 import org.apache.flink.table.functions.ScalarFunction;
 import org.apache.flink.util.Collector;
-import org.apache.flink.util.OutputTag;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.producer.ProducerConfig;
+import org.daijb.huat.services.entity.AssetBehaviorSink;
 import org.daijb.huat.services.entity.FlowEntity;
 import org.daijb.huat.services.utils.StringUtil;
 
@@ -88,31 +91,46 @@ public class KafkaMessageStreaming {
         DataStream<JSONObject> kafkaJson = filterSource.map(new MapFunction<FlowEntity, JSONObject>() {
             @Override
             public JSONObject map(FlowEntity flowEntity) throws Exception {
-                String jsonStr = JSONObject.toJSONString(flowEntity);
+                String jsonStr = JSONObject.toJSONString(flowEntity, SerializerFeature.PrettyFormat);
                 return JSONObject.parseObject(jsonStr);
             }
         });
 
         // 创建临时试图表
-        streamTableEnvironment.createTemporaryView("kafka_source", kafkaJson, "SrcID,SrcIP,DstID,DstIP,AreaID,FlowID,@timestamp");
+        streamTableEnvironment.createTemporaryView("kafka_source", filterSource, "srcId,srcIp,dstId,dstIp,areaId,flowId,rTime,rowtime.rowtime");
 
         // 注册UDF
         streamTableEnvironment.registerFunction("UdfTimestampConverter", new UdfTimestampConverter());
 
         // 运行sql
-        String queryExpr = "select SrcID as srcId,SrcIP as srcIp,DstIP as dstIp,DstIp as dstIp,AreaID as areaId,FlowID as flowId,@timestamp" +
-                "from kafka_source;";
+        String queryExpr = "select srcId as srcId,srcIp as srcIp,dstId as dstId,dstIp as dstIp,areaId as areaId,flowId as flowId,rTime " +
+                " from kafka_source ";
+        //+ " group by areaId,srcId,srcIp,dstId,dstIp,flowId,rTime,TUMBLE(rowtime, INTERVAL '10' SECOND)";
 
         // 获取结果
         Table table = streamTableEnvironment.sqlQuery(queryExpr);
-        //table.distinct().
 
-        /*streamExecutionEnvironment.addSource(kafkaConsumer)
-                .print()
-                .setParallelism(1);*/
+        DataStream<FlowEntity> flowEntityDataStream = streamTableEnvironment.toAppendStream(table, FlowEntity.class);
+
+        flowEntityDataStream.print().setParallelism(1);
+
+        // 全局唯一
+        final AssetConnectionExecutive assetConnectionExecutive = new AssetConnectionExecutive();
+
+        /**
+         * 查找具有连接关系的数据
+         */
+        DataStream<FlowEntity> filter = flowEntityDataStream.filter(new FilterFunction<FlowEntity>() {
+            @Override
+            public boolean filter(FlowEntity flowEntity) throws Exception {
+                return assetConnectionExecutive.assetBehaviorFilter(flowEntity);
+            }
+        });
+        //.addSink(new MySqlTwoPhaseCommitSink()).name("MySqlTwoPhaseCommitSink");
 
         streamExecutionEnvironment.execute("kafka message streaming start ....");
     }
+
 
     /**
      * 解析kafka数据

@@ -1,5 +1,7 @@
-package org.daijb.huat.services;
+package org.daijb.huat.services.utils;
 
+import com.mchange.v2.c3p0.ComboPooledDataSource;
+import org.daijb.huat.services.AssetConnectionExecutive;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -15,25 +17,49 @@ public class DBConnectUtil {
 
     private static final Logger logger = LoggerFactory.getLogger(DBConnectUtil.class);
 
+    private static final String addr = "192.168.3.188";
+
+    private static final String username = "root";
+
+    private static final String password = "Admin@123";
+
+    private static volatile Connection connection = null;
+
     /**
      * 获取database连接
      */
-    public static Connection getConnection() throws Exception {
-        Connection conn = null;
+    private static Connection getConn() throws Exception {
         try {
-            String url = "jdbc:mysql://192.168.3.188:3306/csp?useUnicode=true&characterEncoding=UTF-8&zeroDateTimeBehavior=convertToNull&useSSL=false&autoReconnect=true";
-            Class.forName("com.mysql.jdbc.Driver");
-            conn = DriverManager.getConnection(url, "root", "Admin@123");
+            //创建连接池对象
+            ComboPooledDataSource comboPooledDataSource = new ComboPooledDataSource();
+            //设置数据源
+            comboPooledDataSource.setDriverClass("com.mysql.jdbc.Driver");
+            comboPooledDataSource.setJdbcUrl("jdbc:mysql://" + addr + ":3306/csp?useEncoding=true&characterEncoding=utf-8&serverTimezone=UTC");
+            comboPooledDataSource.setUser(username);
+            comboPooledDataSource.setPassword(password);
+            //获取连接
+            connection = comboPooledDataSource.getConnection();
         } catch (Exception e) {
             logger.error("get database connection failed due to ", e);
-            conn = null;
+            connection = null;
         }
-        if (conn == null) {
+        if (connection == null) {
             throw new Exception("sql connection is null");
         }
         //设置手动提交
-        conn.setAutoCommit(false);
-        return conn;
+        connection.setAutoCommit(false);
+        return connection;
+    }
+
+    public static Connection getConnection() throws Exception {
+        if (connection == null) {
+            synchronized (DBConnectUtil.class) {
+                if (connection == null) {
+                    connection = getConn();
+                }
+            }
+        }
+        return connection;
     }
 
     /**
