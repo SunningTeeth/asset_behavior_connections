@@ -3,6 +3,8 @@ package org.daijb.huat.services;
 import com.alibaba.fastjson.JSON;
 import org.apache.flink.api.common.functions.FilterFunction;
 import org.apache.flink.api.common.serialization.SimpleStringSchema;
+import org.apache.flink.runtime.state.filesystem.FsStateBackend;
+import org.apache.flink.streaming.api.CheckpointingMode;
 import org.apache.flink.streaming.api.TimeCharacteristic;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
@@ -46,7 +48,22 @@ public class KafkaMessageStreaming {
         //创建 TableEnvironment
         StreamTableEnvironment streamTableEnvironment = StreamTableEnvironment.create(streamExecutionEnvironment, fsSettings);
 
-        //加载kafka.properties
+        //每隔10s进行启动一个检查点【设置checkpoint的周期】
+        streamExecutionEnvironment.enableCheckpointing(10000);
+        //设置模式为：exactly_one，仅一次语义
+        streamExecutionEnvironment.getCheckpointConfig().setCheckpointingMode(CheckpointingMode.EXACTLY_ONCE);
+        //确保检查点之间有1s的时间间隔【checkpoint最小间隔】
+        streamExecutionEnvironment.getCheckpointConfig().setMinPauseBetweenCheckpoints(1000);
+        //检查点必须在10s之内完成，或者被丢弃【checkpoint超时时间】
+        streamExecutionEnvironment.getCheckpointConfig().setCheckpointTimeout(10000);
+        //同一时间只允许进行一次检查点
+        streamExecutionEnvironment.getCheckpointConfig().setMaxConcurrentCheckpoints(1);
+        //表示一旦Flink程序被cancel后，会保留checkpoint数据，以便根据实际需要恢复到指定的checkpoint
+        //streamExecutionEnvironment.getCheckpointConfig().enableExternalizedCheckpoints(CheckpointConfig.ExternalizedCheckpointCleanup.RETAIN_ON_CANCELLATION);
+        //设置statebackend,将检查点保存在hdfs上面，默认保存在内存中。这里先保存到本地
+        //streamExecutionEnvironment.setStateBackend(new FsStateBackend("file:///Users/temp/cp/"));
+
+        //加载kafka配置信息
         Properties kafkaProperties = JavaKafkaConfigurer.getKafkaProperties(args);
 
         Properties props = new Properties();
