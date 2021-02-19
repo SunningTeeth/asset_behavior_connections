@@ -65,9 +65,7 @@ public class DBConnectUtil {
             try {
                 conn.commit();
             } catch (SQLException e) {
-                logger.error("提交事物失败,Connection:" + conn);
-                e.printStackTrace();
-            } finally {
+                logger.error("提交事物失败,Connection:" + conn, e);
                 close(conn);
             }
         }
@@ -83,9 +81,7 @@ public class DBConnectUtil {
             try {
                 conn.rollback();
             } catch (SQLException e) {
-                logger.error("事物回滚失败,Connection:" + conn);
-                e.printStackTrace();
-            } finally {
+                logger.error("事物回滚失败,Connection:" + conn, e);
                 close(conn);
             }
         }
@@ -93,8 +89,6 @@ public class DBConnectUtil {
 
     /**
      * 关闭连接
-     *
-     * @param conn
      */
     public static void close(Connection conn) {
         if (conn != null) {

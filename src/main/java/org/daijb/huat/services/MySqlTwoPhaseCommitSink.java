@@ -47,14 +47,13 @@ public class MySqlTwoPhaseCommitSink extends TwoPhaseCommitSinkFunction<org.daij
         String assetId = flowEntity.getAssetId();
         String assetIp = flowEntity.getAssetIp();
         JSONArray dstIpSegment = flowEntity.getDstIpSegment();
-        String sql = "insert into `model_result_asset_behavior_relation` (`id`,`modeling_params_id`,`src_id`,`src_ip`,`dst_ip_segment`,`time`) values (?,?,?,?,?,?)";
+        String sql = "insert into `model_result_asset_behavior_relation` (`modeling_params_id`,`src_id`,`src_ip`,`dst_ip_segment`,`time`) values (?,?,?,?,?)";
         PreparedStatement ps = connection.prepareStatement(sql);
-        ps.setInt(1, 98989);
-        ps.setString(2, modelingParamId);
-        ps.setString(3, assetId);
-        ps.setString(4, assetIp);
-        ps.setString(5, dstIpSegment.toJSONString());
-        ps.setString(6, LocalDateTime.now().toString());
+        ps.setString(1, modelingParamId);
+        ps.setString(2, assetId);
+        ps.setString(3, assetIp);
+        ps.setString(4, dstIpSegment == null ? "" : dstIpSegment.toJSONString());
+        ps.setString(5, LocalDateTime.now().toString());
         //执行insert语句
         ps.execute();
     }

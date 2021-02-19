@@ -109,13 +109,13 @@ public class KafkaMessageStreaming {
         });*/
 
         // 创建临时试图表
-        streamTableEnvironment.createTemporaryView("kafka_source", filterSource, "srcId,srcIp,dstId,dstIp,areaId,flowId,rTime,rowtime.rowtime");
+        streamTableEnvironment.createTemporaryView("kafka_source", filterSource, "srcId,srcIp,dstId,dstIp,areaId,flowId,rTime,assetId,assetIp,dstIpSegment,modelingParamId,sTime,rowtime.rowtime");
 
         // 注册UDF
         streamTableEnvironment.registerFunction("UdfTimestampConverter", new UdfTimestampConverter());
 
         // 运行sql
-        String queryExpr = "select srcId as srcId,srcIp as srcIp,dstId as dstId,dstIp as dstIp,areaId as areaId,flowId as flowId,rTime " +
+        String queryExpr = "select srcId as srcId,srcIp as srcIp,dstId as dstId,dstIp as dstIp,areaId as areaId,flowId as flowId,rTime,assetId,assetIp,dstIpSegment,modelingParamId,sTime " +
                 " from kafka_source ";
         //+ " group by areaId,srcId,srcIp,dstId,dstIp,flowId,rTime,TUMBLE(rowtime, INTERVAL '10' SECOND)";
 
@@ -124,7 +124,7 @@ public class KafkaMessageStreaming {
 
         DataStream<FlowEntity> flowEntityDataStream = streamTableEnvironment.toAppendStream(table, FlowEntity.class);
 
-        flowEntityDataStream.print().setParallelism(1);
+        //flowEntityDataStream.print().setParallelism(1);
 
         // 全局唯一
         final AssetConnectionExecutive assetConnectionExecutive = new AssetConnectionExecutive();

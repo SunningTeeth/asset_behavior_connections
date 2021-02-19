@@ -22,7 +22,7 @@ public class FlowEntity {
     private String assetIp;
     private JSONArray dstIpSegment;
     private String modelingParamId;
-    private String time;
+    private String sTime;
 
     public FlowEntity() {
     }
@@ -122,12 +122,12 @@ public class FlowEntity {
         this.modelingParamId = modelingParamId;
     }
 
-    public String getTime() {
-        return time;
+    public String getsTime() {
+        return sTime;
     }
 
-    public void setTime(String time) {
-        this.time = time;
+    public void setsTime(String sTime) {
+        this.sTime = sTime;
     }
 
     public JSONObject toJSONObject() {
