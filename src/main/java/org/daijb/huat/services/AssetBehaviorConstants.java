@@ -74,4 +74,36 @@ public interface AssetBehaviorConstants {
      * persistence
      */
     public static final String PERSISTENCE_FILEPATH = "/usr/csp/model/assetBehavior/";
+
+    static enum ModelStatus {
+        /**
+         * 建模的状态。参数选定：prepare
+         */
+        PREPARE,
+        /**
+         * 提交Flink任务：running
+         */
+        RUNNING,
+        /**
+         * 建模成功：success
+         */
+        SUCCESS,
+        /**
+         * 建模失败：failed
+         */
+        FAILED,
+        /**
+         * 意外终止：stop
+         */
+        STOP
+    }
+
+    static enum ModelCycle {
+        HOURS,
+        DAYS,
+        WEEK,
+        MONTH,
+        QUARTER,
+        YEAR
+    }
 }

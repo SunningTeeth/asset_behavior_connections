@@ -1,6 +1,5 @@
 package org.daijb.huat.services.entity;
 
-import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 
 /**
@@ -13,25 +12,11 @@ public class FlowEntity {
     private String srcIp;
     private String dstId;
     private String dstIp;
-    private long rTime;
     private Integer areaId;
     private String flowId;
-
-    //==========为方便sink====
-    private String assetId;
-    private String assetIp;
-    private JSONArray dstIpSegment;
-    private String modelingParamId;
-    private String sTime;
+    private Long rTime;
 
     public FlowEntity() {
-    }
-
-    public FlowEntity(String assetId, String assetIp, JSONArray dstIpSegment, String modelingParamId) {
-        this.assetId = assetId;
-        this.assetIp = assetIp;
-        this.dstIpSegment = dstIpSegment;
-        this.modelingParamId = modelingParamId;
     }
 
     public String getSrcId() {
@@ -66,14 +51,6 @@ public class FlowEntity {
         this.dstIp = dstIp;
     }
 
-    public long getrTime() {
-        return rTime;
-    }
-
-    public void setrTime(long rTime) {
-        this.rTime = rTime;
-    }
-
     public Integer getAreaId() {
         return areaId;
     }
@@ -90,44 +67,12 @@ public class FlowEntity {
         this.flowId = flowId;
     }
 
-    public String getAssetId() {
-        return assetId;
+    public Long getrTime() {
+        return rTime;
     }
 
-    public void setAssetId(String assetId) {
-        this.assetId = assetId;
-    }
-
-    public String getAssetIp() {
-        return assetIp;
-    }
-
-    public void setAssetIp(String assetIp) {
-        this.assetIp = assetIp;
-    }
-
-    public JSONArray getDstIpSegment() {
-        return dstIpSegment;
-    }
-
-    public void setDstIpSegment(JSONArray dstIpSegment) {
-        this.dstIpSegment = dstIpSegment;
-    }
-
-    public String getModelingParamId() {
-        return modelingParamId;
-    }
-
-    public void setModelingParamId(String modelingParamId) {
-        this.modelingParamId = modelingParamId;
-    }
-
-    public String getsTime() {
-        return sTime;
-    }
-
-    public void setsTime(String sTime) {
-        this.sTime = sTime;
+    public void setrTime(Long rTime) {
+        this.rTime = rTime;
     }
 
     public JSONObject toJSONObject() {
@@ -139,7 +84,6 @@ public class FlowEntity {
         json.put("AreaID", getAreaId());
         json.put("FlowID", getFlowId());
         json.put("rTime", getrTime());
-
         return json;
     }
 
@@ -150,9 +94,9 @@ public class FlowEntity {
                 ", srcIp='" + srcIp + '\'' +
                 ", dstId='" + dstId + '\'' +
                 ", dstIp='" + dstIp + '\'' +
-                ", rTime=" + rTime +
                 ", areaId=" + areaId +
                 ", flowId='" + flowId + '\'' +
+                ", rTime=" + rTime +
                 '}';
     }
 }

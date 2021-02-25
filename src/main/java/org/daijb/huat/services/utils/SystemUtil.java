@@ -31,6 +31,16 @@ public class SystemUtil {
         return "Admin@123";
     }
 
+    private static final String jdbcUrl = getJdbcUrl0();
+
+    public static String getJdbcUrl() {
+        return jdbcUrl;
+    }
+
+    private static String getJdbcUrl0() {
+        return "jdbc:mysql://" + getHostIp() + ":3306/csp?useEncoding=true&characterEncoding=utf-8&serverTimezone=UTC";
+    }
+
     /**
      * 获取本地服务器IP地址
      */

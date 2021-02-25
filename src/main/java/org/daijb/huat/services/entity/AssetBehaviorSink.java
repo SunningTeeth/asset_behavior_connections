@@ -14,7 +14,6 @@ import org.json.simple.JSONArray;
  * `time` datetime(0) NULL DEFAULT NULL COMMENT '数据插入时间',
  * PRIMARY KEY (`id`) USING BTREE
  * ) ENGINE = InnoDB CHARACTER SET = utf8 COLLATE = utf8_general_ci ROW_FORMAT = Dynamic;
- * @deprecated
  */
 public class AssetBehaviorSink {
 
@@ -66,5 +65,15 @@ public class AssetBehaviorSink {
 
     public void setDstIpSegment(JSONArray dstIpSegment) {
         this.dstIpSegment = dstIpSegment;
+    }
+
+    @Override
+    public String toString() {
+        return "AssetBehaviorSink{" +
+                "modelingParamId='" + modelingParamId + '\'' +
+                ", srcId='" + srcId + '\'' +
+                ", srcIp='" + srcIp + '\'' +
+                ", dstIpSegment=" + dstIpSegment +
+                '}';
     }
 }

@@ -3,6 +3,8 @@ package org.daijb.huat.services;
 import org.daijb.huat.services.utils.ConversionUtil;
 import org.daijb.huat.services.utils.DBConnectUtil;
 import org.daijb.huat.services.utils.StringUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
@@ -21,11 +23,16 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public class AssetBehaviorBuildModelUtil implements AssetBehaviorConstants {
 
+    private static final Logger logger = LoggerFactory.getLogger(AssetBehaviorBuildModelUtil.class);
+
     private static Map<String, Object> modelingParams;
+
+    private static volatile ModelCycle modelCycle = ModelCycle.HOURS;
 
     static {
         try {
             modelingParams = buildModelingParams();
+            calculateSegmentKey();
         } catch (Exception e) {
             modelingParams = null;
         }
@@ -35,40 +42,8 @@ public class AssetBehaviorBuildModelUtil implements AssetBehaviorConstants {
         return modelingParams;
     }
 
-    /**
-     * 返回建模周期(以天为单位)
-     */
-    public static int getModelCycle() {
-        Object o = modelingParams.get(MODEL_RESULT_SPAN);
-        if (o == null) {
-            return 1;
-        }
-        int cycle = 1;
-        switch (o.toString()) {
-            case "1":
-            default: {
-                cycle = 1;
-                break;
-            }
-            case "2": {
-                // 周
-                cycle = 7;
-                break;
-            }
-            case "3": {
-                // 季度
-                cycle = 4 * 30;
-                break;
-            }
-            case "4": {
-                // 年
-                Calendar cal = Calendar.getInstance();
-                cal.set(Calendar.YEAR, LocalDateTime.now().getYear());
-                cycle = cal.getActualMaximum(Calendar.DAY_OF_YEAR);
-                break;
-            }
-        }
-        return cycle;
+    public static ModelCycle getModelCycle() {
+        return modelCycle;
     }
 
     /**
@@ -78,31 +53,28 @@ public class AssetBehaviorBuildModelUtil implements AssetBehaviorConstants {
         return "" + modelingParams.get(MODEL_RATE_TIME_UNIT_NUM) + modelingParams.get(MODEL_RATE_TIME_UNIT);
     }
 
-    private final static AtomicInteger calculateKeys = new AtomicInteger();
-
     /**
      * 计算目标网段key
      * 需要调用方当 key <= 0 时，停止程序
      */
-    public static int calculateSegmentKey() throws Exception {
-        String rate = getBuildModelRate().trim();
-        rate = rate.substring(rate.length() - 2);
+    public static synchronized int calculateSegmentKey() throws Exception {
+        String rate = ConversionUtil.toString(modelingParams.get(MODEL_RATE_TIME_UNIT_NUM));
+        String rateUnit = ConversionUtil.toString(modelingParams.get(MODEL_RATE_TIME_UNIT));
         // 建模周期
         int cycle = ConversionUtil.toInteger(modelingParams.get(MODEL_RESULT_SPAN));
-        /*String rate = "dd";
-        int cycle = 2;*/
-        String key = persistence(null);
+        //String key = persistence(null);
+        String key = null;
 
         switch (cycle) {
             case 1: {
+                modelCycle = ModelCycle.DAYS;
                 //天,频率可以是 ss mm hh
-                if (StringUtil.equals(rate, "ss") || StringUtil.equals(rate, "mm") || StringUtil.equals(rate, "hh")) {
-                    int v = calculateKeys.incrementAndGet();
+                if (StringUtil.equals(rateUnit, "hh")) {
                     if (StringUtil.isEmpty(key)) {
-                        key = rate + "_" + v;
+                        key = rateUnit + "_" + 1;
                     } else {
                         int cursor = key.indexOf("_") + 1;
-                        key = rate + "_" + (ConversionUtil.toInteger(key.substring(cursor)) - 1);
+                        key = rateUnit + "_" + (ConversionUtil.toInteger(key.substring(cursor)) + 1);
                     }
                 } else {
                     throw new Exception("cycle : " + cycle + ",rate : " + rate + " is not match");
@@ -111,12 +83,13 @@ public class AssetBehaviorBuildModelUtil implements AssetBehaviorConstants {
             }
             case 2: {
                 //周,频率只能是 dd
-                if (StringUtil.equals(rate, "dd")) {
+                modelCycle = ModelCycle.WEEK;
+                if (StringUtil.equals(rateUnit, "dd")) {
                     if (StringUtil.isEmpty(key)) {
-                        key = rate + "_" + 7;
+                        key = rateUnit + "_" + 1;
                     } else {
                         int cursor = key.indexOf("_") + 1;
-                        key = rate + "_" + (ConversionUtil.toInteger(key.substring(cursor)) - 1);
+                        key = rateUnit + "_" + (ConversionUtil.toInteger(key.substring(cursor)) + 1);
                     }
                 } else {
                     throw new Exception("cycle : " + cycle + ",rate : " + rate + " is not match");
@@ -125,12 +98,13 @@ public class AssetBehaviorBuildModelUtil implements AssetBehaviorConstants {
             }
             case 3: {
                 //季度,频率只能是月
+                modelCycle = ModelCycle.QUARTER;
                 if (StringUtil.equals(rate, "MM")) {
                     if (StringUtil.isEmpty(key)) {
-                        key = rate + "_" + 4;
+                        key = rateUnit + "_" + 1;
                     } else {
                         int cursor = key.indexOf("_") + 1;
-                        key = rate + "_" + (ConversionUtil.toInteger(key.substring(cursor)) - 1);
+                        key = rateUnit + "_" + (ConversionUtil.toInteger(key.substring(cursor)) + 1);
                     }
                 } else {
                     throw new Exception("cycle : " + cycle + ",rate : " + rate + " is not match");
@@ -139,12 +113,13 @@ public class AssetBehaviorBuildModelUtil implements AssetBehaviorConstants {
             }
             case 4: {
                 // 年,频率只能是月
+                modelCycle = ModelCycle.YEAR;
                 if (StringUtil.equals(rate, "MM")) {
                     if (StringUtil.isEmpty(key)) {
-                        key = rate + "_" + 12;
+                        key = rateUnit + "_" + 1;
                     } else {
                         int cursor = key.indexOf("_") + 1;
-                        key = rate + "_" + (ConversionUtil.toInteger(key.substring(cursor)) - 1);
+                        key = rateUnit + "_" + (ConversionUtil.toInteger(key.substring(cursor)) + 1);
                     }
                 } else {
                     throw new Exception("cycle : " + cycle + ",rate : " + rate + " is not match");
@@ -154,7 +129,7 @@ public class AssetBehaviorBuildModelUtil implements AssetBehaviorConstants {
                 throw new Exception("cycle : " + cycle + ",rate : " + rate + " is not match");
             }
         }
-        persistence(key);
+        // persistence(key);
         assert key != null;
         return ConversionUtil.toInteger(key.substring(key.indexOf("_") + 1));
     }
@@ -193,27 +168,32 @@ public class AssetBehaviorBuildModelUtil implements AssetBehaviorConstants {
         return null;
     }
 
-    public static Map<String, Object> buildModelingParams() throws Exception {
+    public static Map<String, Object> buildModelingParams() {
         Connection connection = DBConnectUtil.getConnection();
         Map<String, Object> result = new HashMap<>(15 * 3 / 4);
-        ResultSet resultSet = connection.createStatement().executeQuery("select * from modeling_params where model_type='1' and model_child_type='1';");
-        while (resultSet.next()) {
-            result.put(MODEL_ID, resultSet.getString("id"));
-            result.put(MODEL_TYPE, resultSet.getString("model_type"));
-            result.put(MODEL_CHILD_TYPE, resultSet.getString("model_child_type"));
-            result.put(MODEL_RATE_TIME_UNIT, resultSet.getString("model_rate_timeunit"));
-            result.put(MODEL_RATE_TIME_UNIT_NUM, resultSet.getString("model_rate_timeunit_num"));
-            result.put(MODEL_RESULT_SPAN, resultSet.getString("model_result_span"));
-            result.put(MODEL_RESULT_TEMPLATE, resultSet.getString("model_result_template"));
-            result.put(MODEL_CONFIDENCE_INTERVAL, resultSet.getString("model_confidence_interval"));
-            result.put(MODEL_HISTORY_DATA_SPAN, resultSet.getString("model_history_data_span"));
-            result.put(MODEL_UPDATE, resultSet.getString("model_update"));
-            result.put(MODEL_SWITCH, resultSet.getString("model_switch"));
-            result.put(MODEL_SWITCH_2, resultSet.getString("model_switch_2"));
-            result.put(MODEL_ATTRS, resultSet.getString("model_alt_params"));
-            result.put(MODEL_TASK_STATUS, resultSet.getString("model_task_status"));
-            result.put(MODEL_MODIFY_TIME, resultSet.getString("modify_time"));
+        try {
+            ResultSet resultSet = connection.createStatement().executeQuery("select * from modeling_params where model_type=1 and model_child_type =3 and model_switch = 1 and model_switch_2 =1 and modify_time < DATE_SUB( NOW(), INTERVAL 10 MINUTE );");
+            while (resultSet.next()) {
+                result.put(MODEL_ID, resultSet.getString("id"));
+                result.put(MODEL_TYPE, resultSet.getString("model_type"));
+                result.put(MODEL_CHILD_TYPE, resultSet.getString("model_child_type"));
+                result.put(MODEL_RATE_TIME_UNIT, resultSet.getString("model_rate_timeunit"));
+                result.put(MODEL_RATE_TIME_UNIT_NUM, resultSet.getString("model_rate_timeunit_num"));
+                result.put(MODEL_RESULT_SPAN, resultSet.getString("model_result_span"));
+                result.put(MODEL_RESULT_TEMPLATE, resultSet.getString("model_result_template"));
+                result.put(MODEL_CONFIDENCE_INTERVAL, resultSet.getString("model_confidence_interval"));
+                result.put(MODEL_HISTORY_DATA_SPAN, resultSet.getString("model_history_data_span"));
+                result.put(MODEL_UPDATE, resultSet.getString("model_update"));
+                result.put(MODEL_SWITCH, resultSet.getString("model_switch"));
+                result.put(MODEL_SWITCH_2, resultSet.getString("model_switch_2"));
+                result.put(MODEL_ATTRS, resultSet.getString("model_alt_params"));
+                result.put(MODEL_TASK_STATUS, resultSet.getString("model_task_status"));
+                result.put(MODEL_MODIFY_TIME, resultSet.getString("modify_time"));
+            }
+        } catch (Throwable throwable) {
+            logger.error("build model params failed ", throwable);
         }
+
         return result;
     }
 

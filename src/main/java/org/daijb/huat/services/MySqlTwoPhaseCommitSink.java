@@ -1,9 +1,11 @@
 package org.daijb.huat.services;
 
+import com.alibaba.fastjson.JSONObject;
 import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.typeutils.base.VoidSerializer;
 import org.apache.flink.api.java.typeutils.runtime.kryo.KryoSerializer;
 import org.apache.flink.streaming.api.functions.sink.TwoPhaseCommitSinkFunction;
+import org.daijb.huat.services.entity.AssetBehaviorSink;
 import org.daijb.huat.services.entity.FlowEntity;
 import org.daijb.huat.services.utils.DBConnectUtil;
 import org.json.simple.JSONArray;
@@ -13,6 +15,8 @@ import org.slf4j.LoggerFactory;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.time.LocalDateTime;
+
+import static org.daijb.huat.services.AssetBehaviorConstants.MODEL_ID;
 
 
 /**
@@ -29,7 +33,7 @@ import java.time.LocalDateTime;
  * 来源：简书
  * 著作权归作者所有。商业转载请联系作者获得授权，非商业转载请注明出处。
  */
-public class MySqlTwoPhaseCommitSink extends TwoPhaseCommitSinkFunction<org.daijb.huat.services.entity.FlowEntity, Connection, Void> {
+public class MySqlTwoPhaseCommitSink extends TwoPhaseCommitSinkFunction<JSONObject, Connection, Void> {
 
     private static final Logger logger = LoggerFactory.getLogger(MySqlTwoPhaseCommitSink.class);
 
@@ -41,18 +45,20 @@ public class MySqlTwoPhaseCommitSink extends TwoPhaseCommitSinkFunction<org.daij
      * 执行数据库入库操作  task初始化的时候调用
      */
     @Override
-    protected void invoke(Connection connection, FlowEntity flowEntity, Context context) throws Exception {
+    protected void invoke(Connection connection, JSONObject json, Context context) throws Exception {
         logger.info("start invoke...");
-        String modelingParamId = flowEntity.getModelingParamId();
-        String assetId = flowEntity.getAssetId();
-        String assetIp = flowEntity.getAssetIp();
-        JSONArray dstIpSegment = flowEntity.getDstIpSegment();
+        /*AssetBehaviorSink assetBehaviorSink = new AssetBehaviorSink();
+        assetBehaviorSink.setDstIpSegment(json.getJSONArray());
+        assetBehaviorSink.setModelingParamId();
+        assetBehaviorSink.setSrcId(json.getString("srcId"));
+        assetBehaviorSink.setSrcIp(json.getString("srcIp"));*/
+        JSONArray dstIpSegment = null;
         String sql = "insert into `model_result_asset_behavior_relation` (`modeling_params_id`,`src_id`,`src_ip`,`dst_ip_segment`,`time`) values (?,?,?,?,?)";
         PreparedStatement ps = connection.prepareStatement(sql);
-        ps.setString(1, modelingParamId);
-        ps.setString(2, assetId);
-        ps.setString(3, assetIp);
-        ps.setString(4, dstIpSegment == null ? "" : dstIpSegment.toJSONString());
+        ps.setString(1, AssetBehaviorBuildModelUtil.getModelingParams().get("modelId").toString());
+        ps.setString(2, json.getString("srcId"));
+        ps.setString(3, json.getString("srcIp"));
+        ps.setString(4, dstIpSegment == null ? "daijb" : dstIpSegment.toJSONString());
         ps.setString(5, LocalDateTime.now().toString());
         //执行insert语句
         ps.execute();

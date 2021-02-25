@@ -4,7 +4,9 @@ import com.mchange.v2.c3p0.ComboPooledDataSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.swing.plaf.TableHeaderUI;
 import java.sql.Connection;
+import java.sql.PreparedStatement;
 import java.sql.SQLException;
 
 /**
@@ -13,48 +15,68 @@ import java.sql.SQLException;
  */
 public class DBConnectUtil {
 
+    public static void main(String[] args) {
+        Integer a = 120;
+
+
+        System.out.println(a.equals(null));
+    }
+
     private static final Logger logger = LoggerFactory.getLogger(DBConnectUtil.class);
 
-    private static volatile Connection connection = null;
+    /**
+     * 创建连接池对象
+     */
+    private static ComboPooledDataSource dataSource = null;
+
+    static {
+        configurer();
+    }
 
     /**
-     * 获取database连接
+     * 配置连接池
      */
-    private static Connection getConn() throws Exception {
+    private static void configurer() {
         try {
-            //创建连接池对象
-            ComboPooledDataSource comboPooledDataSource = new ComboPooledDataSource();
             //设置数据源
-            comboPooledDataSource.setDriverClass("com.mysql.jdbc.Driver");
+            dataSource = new ComboPooledDataSource();
+            dataSource.setDriverClass("com.mysql.jdbc.Driver");
             String addr = SystemUtil.getHostIp();
             String username = SystemUtil.getMysqlUser();
             String password = SystemUtil.getMysqlPassword();
-            comboPooledDataSource.setJdbcUrl("jdbc:mysql://" + addr + ":3306/csp?useEncoding=true&characterEncoding=utf-8&serverTimezone=UTC");
-            comboPooledDataSource.setUser(username);
-            comboPooledDataSource.setPassword(password);
-            //获取连接
-            connection = comboPooledDataSource.getConnection();
+            dataSource.setJdbcUrl("jdbc:mysql://" + addr + ":3306/csp?useEncoding=true&characterEncoding=utf-8&serverTimezone=UTC");
+            dataSource.setUser(username);
+            dataSource.setPassword(password);
         } catch (Exception e) {
             logger.error("get database connection failed due to ", e);
-            connection = null;
         }
-        if (connection == null) {
-            throw new Exception("sql connection is null");
-        }
-        //设置手动提交
-        connection.setAutoCommit(false);
-        return connection;
     }
 
-    public static Connection getConnection() throws Exception {
-        if (connection == null) {
-            synchronized (DBConnectUtil.class) {
-                if (connection == null) {
-                    connection = getConn();
-                }
-            }
+    public static Connection getConnection() {
+        Connection conn = null;
+        if (dataSource == null) {
+            configurer();
         }
-        return connection;
+        try {
+            conn = dataSource.getConnection();
+        } catch (Throwable throwable) {
+            logger.error("get database connection failed ", throwable);
+        }
+        return conn;
+    }
+
+    public static void execUpdateTask(String sql, String... params) {
+        Connection connection = getConnection();
+        try {
+            PreparedStatement ps = connection.prepareStatement(sql);
+            for (int i = 1; i <= params.length; i++) {
+                ps.setString(i, params[i - 1]);
+            }
+            ps.execute();
+        } catch (Throwable throwable) {
+            logger.error("execute update task failed ", throwable);
+        }
+
     }
 
     /**
