@@ -1,4 +1,4 @@
-package org.daijb.huat.services.entity;
+package org.daijb.huat.entity;
 
 import org.json.simple.JSONArray;
 
@@ -64,6 +64,9 @@ public class AssetBehaviorSink {
     }
 
     public void setDstIpSegment(JSONArray dstIpSegment) {
+        if (this.dstIpSegment != null && !this.dstIpSegment.isEmpty()) {
+            this.dstIpSegment.addAll(dstIpSegment);
+        }
         this.dstIpSegment = dstIpSegment;
     }
 

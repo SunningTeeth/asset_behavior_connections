@@ -1,4 +1,4 @@
-package org.daijb.huat.services;
+package org.daijb.huat;
 
 /**
  * @author daijb
@@ -99,11 +99,29 @@ public interface AssetBehaviorConstants {
     }
 
     static enum ModelCycle {
+        /**
+         * 小时
+         */
         HOURS,
+        /**
+         * 天
+         */
         DAYS,
+        /**
+         * 周
+         */
         WEEK,
+        /**
+         * 月
+         */
         MONTH,
+        /**
+         * 季度
+         */
         QUARTER,
+        /**
+         * 年
+         */
         YEAR
     }
 }

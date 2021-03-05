@@ -1,4 +1,4 @@
-package org.daijb.huat.services.entity;
+package org.daijb.huat.entity;
 
 import org.json.simple.JSONObject;
 

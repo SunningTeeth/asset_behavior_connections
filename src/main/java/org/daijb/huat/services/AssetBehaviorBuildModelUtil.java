@@ -1,8 +1,9 @@
 package org.daijb.huat.services;
 
-import org.daijb.huat.services.utils.ConversionUtil;
-import org.daijb.huat.services.utils.DBConnectUtil;
-import org.daijb.huat.services.utils.StringUtil;
+import org.daijb.huat.AssetBehaviorConstants;
+import org.daijb.huat.utils.ConversionUtil;
+import org.daijb.huat.utils.DbConnectUtil;
+import org.daijb.huat.utils.StringUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -10,16 +11,15 @@ import java.io.File;
 import java.io.IOException;
 import java.sql.Connection;
 import java.sql.ResultSet;
-import java.time.LocalDateTime;
-import java.util.Calendar;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * @author daijb
  * @date 2021/2/18 17:39
+ * @see org.daijb.huat.config.ModelParamsConfigurer
+ * @deprecated
  */
 public class AssetBehaviorBuildModelUtil implements AssetBehaviorConstants {
 
@@ -169,7 +169,7 @@ public class AssetBehaviorBuildModelUtil implements AssetBehaviorConstants {
     }
 
     public static Map<String, Object> buildModelingParams() {
-        Connection connection = DBConnectUtil.getConnection();
+        Connection connection = DbConnectUtil.getConnection();
         Map<String, Object> result = new HashMap<>(15 * 3 / 4);
         try {
             ResultSet resultSet = connection.createStatement().executeQuery("select * from modeling_params where model_type=1 and model_child_type =3 and model_switch = 1 and model_switch_2 =1 and modify_time < DATE_SUB( NOW(), INTERVAL 10 MINUTE );");

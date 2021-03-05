@@ -5,9 +5,7 @@ import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.typeutils.base.VoidSerializer;
 import org.apache.flink.api.java.typeutils.runtime.kryo.KryoSerializer;
 import org.apache.flink.streaming.api.functions.sink.TwoPhaseCommitSinkFunction;
-import org.daijb.huat.services.entity.AssetBehaviorSink;
-import org.daijb.huat.services.entity.FlowEntity;
-import org.daijb.huat.services.utils.DBConnectUtil;
+import org.daijb.huat.utils.DbConnectUtil;
 import org.json.simple.JSONArray;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -15,8 +13,6 @@ import org.slf4j.LoggerFactory;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.time.LocalDateTime;
-
-import static org.daijb.huat.services.AssetBehaviorConstants.MODEL_ID;
 
 
 /**
@@ -70,7 +66,7 @@ public class MySqlTwoPhaseCommitSink extends TwoPhaseCommitSinkFunction<JSONObje
     @Override
     protected Connection beginTransaction() throws Exception {
         logger.info("start beginTransaction.......");
-        return DBConnectUtil.getConnection();
+        return DbConnectUtil.getConnection();
     }
 
     /**
@@ -87,7 +83,7 @@ public class MySqlTwoPhaseCommitSink extends TwoPhaseCommitSinkFunction<JSONObje
     @Override
     protected void commit(Connection connection) {
         logger.info("start commit...");
-        DBConnectUtil.commit(connection);
+        DbConnectUtil.commit(connection);
     }
 
     /**
@@ -96,6 +92,6 @@ public class MySqlTwoPhaseCommitSink extends TwoPhaseCommitSinkFunction<JSONObje
     @Override
     protected void abort(Connection connection) {
         logger.info("start abort rollback...");
-        DBConnectUtil.rollback(connection);
+        DbConnectUtil.rollback(connection);
     }
 }

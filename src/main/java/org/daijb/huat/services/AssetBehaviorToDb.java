@@ -2,15 +2,14 @@ package org.daijb.huat.services;
 
 import com.alibaba.fastjson.JSONObject;
 import org.apache.flink.streaming.api.functions.sink.RichSinkFunction;
-import org.daijb.huat.services.entity.AssetBehaviorSink;
-import org.daijb.huat.services.utils.ConversionUtil;
-import org.daijb.huat.services.utils.DBConnectUtil;
-import org.daijb.huat.services.utils.StringUtil;
+import org.daijb.huat.entity.AssetBehaviorSink;
+import org.daijb.huat.utils.ConversionUtil;
+import org.daijb.huat.utils.DbConnectUtil;
+import org.daijb.huat.utils.StringUtil;
 import org.json.simple.JSONArray;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.Serializable;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.util.Map;
@@ -19,7 +18,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
-import static org.daijb.huat.services.AssetBehaviorConstants.MODEL_ID;
+import static org.daijb.huat.AssetBehaviorConstants.MODEL_ID;
 
 /**
  * @author daijb
@@ -124,7 +123,7 @@ public class AssetBehaviorToDb extends RichSinkFunction<JSONObject> {
     }
 
     private void open() throws Exception {
-        connection = DBConnectUtil.getConnection();
+        connection = DbConnectUtil.getConnection();
         String sql = "insert into `model_result_asset_behavior_relation` (`modeling_params_id`,`src_id`,`src_ip`,`dst_ip_segment`,`time`) values (?,?,?,?,?)";
         ps = connection.prepareStatement(sql);
     }

@@ -4,11 +4,13 @@ import org.apache.flink.api.common.typeinfo.BasicTypeInfo;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.java.io.jdbc.JDBCInputFormat;
 import org.apache.flink.api.java.typeutils.RowTypeInfo;
-import org.daijb.huat.services.utils.SystemUtil;
+import org.daijb.huat.utils.SystemUtil;
 
 /**
  * @author daijb
  * @date 2021/2/22 16:34
+ * @see org.daijb.huat.config.ModelParamsConfigurer
+ * @deprecated
  */
 public class ModelingParamsConfigurer {
 

@@ -1,11 +1,9 @@
-package org.daijb.huat.services.utils;
+package org.daijb.huat.utils;
 
-import java.io.File;
 import java.net.*;
 import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.List;
-import java.util.Properties;
 
 /**
  * @author daijb
@@ -52,7 +50,7 @@ public class SystemUtil {
 
     private static String getHostIp0() {
         if (System.getProperty("os.name").toLowerCase().contains("windows")) {
-            return "192.168.3.188";
+            return "192.168.3.168";
         }
 
         String result = null;

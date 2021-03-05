@@ -1,21 +1,22 @@
 package org.daijb.huat.services;
 
-import org.daijb.huat.services.entity.AssetBehaviorSink;
-import org.daijb.huat.services.entity.FlowEntity;
-import org.daijb.huat.services.utils.ConversionUtil;
-import org.daijb.huat.services.utils.DBConnectUtil;
-import org.daijb.huat.services.utils.StringUtil;
+import org.daijb.huat.AssetBehaviorConstants;
+import org.daijb.huat.config.JavaThreadPoolConfigurer;
+import org.daijb.huat.config.ModelParamsConfigurer;
+import org.daijb.huat.entity.AssetBehaviorSink;
+import org.daijb.huat.entity.FlowEntity;
+import org.daijb.huat.streaming.AssetBehaviorToDatabase;
+import org.daijb.huat.utils.ConversionUtil;
+import org.daijb.huat.utils.DbConnectUtil;
+import org.daijb.huat.utils.StringUtil;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.json.simple.JSONValue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.File;
-import java.io.IOException;
 import java.io.Serializable;
 import java.sql.Connection;
-import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.Statement;
 import java.time.LocalDateTime;
@@ -49,16 +50,15 @@ public class AssetConnectionExecutive implements AssetBehaviorConstants, Seriali
 
     private volatile Map<String, Object> modelingParams;
 
-    private Lock lock = new ReentrantLock();
+    private Lock matchAssetLock = new ReentrantLock();
+    private Lock modelTaskStatusLock = new ReentrantLock();
 
     private volatile long lastUpdateTime = 0;
-
-    private volatile int currSegmentKey = 0;
 
     private volatile boolean isFirst = true;
 
     public AssetConnectionExecutive() {
-        modelingParams = AssetBehaviorBuildModelUtil.getModelingParams();
+        modelingParams = ModelParamsConfigurer.getModelingParams();
         startThreadFunc();
     }
 
@@ -79,7 +79,7 @@ public class AssetConnectionExecutive implements AssetBehaviorConstants, Seriali
         if (stringSetMap == null) {
             return false;
         }
-        while (!lock.tryLock()) {
+        while (!matchAssetLock.tryLock()) {
         }
         try {
             for (Map.Entry<String, Set<String>> entry : stringSetMap.entrySet()) {
@@ -96,104 +96,84 @@ public class AssetConnectionExecutive implements AssetBehaviorConstants, Seriali
 
             }
         } finally {
-            lock.unlock();
+            matchAssetLock.unlock();
         }
 
         return result;
     }
 
-    public static final String PERSISTENCE_FILEPATH = "/usr/csp/model/assetBehavior/";
+    /**
+     * 建模结果周期：1 代表一天。
+     * 2 代表一周。3 代表一季度。
+     * 4 代表一年。如果总长度填写 1 ，建模的时间单位可以是 ss mm hh 。周的建模时间单位只能是 dd 。其他的只能为月
+     * 计算模型的key
+     * <pre>
+     *   1. 建模周期为天 ：
+     *       SegmentKey : 每次从当前日期开始计算,以小时为key
+     *   2. 建模周期为周：建模时间单位只能是天）
+     *       SegmentKey : 每次从当前日期开始计算,以当前周几为key
+     *   3. 建模周期为季度：（建模时间单位只能是月）
+     *      SegmentKey : 每次从当前日期开始计算,以当前月份开始递增
+     *   4. 建模周期为年：（建模时间单位只能是月）
+     *      SegmentKey : 每次从当前日期开始计算,以当前月份开始递增
+     *
+     * </pre>
+     */
+    private Object calculateSegmentCurrKey() throws Exception {
 
-    private int calculateSegmentCurrKey() {
-        //File file = new File(PERSISTENCE_FILEPATH);
-        String buildModelRate = AssetBehaviorBuildModelUtil.getBuildModelRate();
-        String rateUnit = buildModelRate.substring(buildModelRate.length() - 2);
-        File file = new File("C:\\daijb\\demop\\");
-        if (!file.exists()) {
-            file.mkdirs();
-        }
-        int maxSegmentKey = calculateSegmentMaxKey();
-        // 每种频率的开头的文件只有一个
-        File[] childrenFiles = file.listFiles();
-        for (File f : childrenFiles) {
-            // 存在当前key  eg: ss_1
-            String name = f.getName();
-            if (name.contains(rateUnit)) {
-                int ck = ConversionUtil.toInteger(name.substring(name.indexOf("_") + 1));
-                currSegmentKey = ck + 1;
-                if (currSegmentKey > maxSegmentKey) {
-                    break;
-                }
-                f.renameTo(new File(f.getParentFile().getAbsolutePath() + File.separator + rateUnit + "_" + currSegmentKey));
-            } else {
-                //createNewFile
-                File dest = new File(f.getParentFile().getAbsolutePath() + File.separator + rateUnit + "_1");
-                try {
-                    dest.createNewFile();
-                } catch (IOException ignored) {
-                }
-            }
-        }
-        if (childrenFiles.length == 0) {
-            File dest = new File("C:\\daijb\\demop\\" + rateUnit + "_1");
-            try {
-                dest.createNewFile();
-            } catch (IOException ignored) {
-            }
-        }
-        final int currSegmentKey0 = this.currSegmentKey;
-        return currSegmentKey0;
-    }
-
-    private int calculateSegmentMaxKey() {
-        AssetBehaviorBuildModelUtil.ModelCycle modelCycle = AssetBehaviorBuildModelUtil.getModelCycle();
-        String buildModelRate = AssetBehaviorBuildModelUtil.getBuildModelRate();
-        String rateNum = buildModelRate.substring(0, buildModelRate.length() - 2);
-        String rateUnit = buildModelRate.substring(buildModelRate.length() - 2);
-        int keyMax = 0;
-        switch (modelCycle) {
-            case DAYS: {
-                // 建模周期为天时，建模频率暂为小时
-                keyMax = 24 / ConversionUtil.toInteger(rateNum);
+        // 建模周期
+        int cycle = ConversionUtil.toInteger(this.modelingParams.get(MODEL_RESULT_SPAN));
+        LocalDateTime now = LocalDateTime.now();
+        Object segmentKey = null;
+        switch (cycle) {
+            // 暂时默认为小时
+            case 1: {
+                segmentKey = now.getHour();
                 break;
             }
-            case WEEK: {
-                //建模周期为周的时，建模频率只能是天
-                keyMax = 7 / ConversionUtil.toInteger(rateNum);
+            //周,频率只能是 dd
+            case 2: {
+                segmentKey = now.getDayOfWeek().getValue();
                 break;
             }
+            //季度,频率只能是月
+            case 3:
+            case 4: {
+                // 年,频率只能是月
+                segmentKey = now.getMonth().getValue();
+                break;
+            }
+            default: {
+                throw new Exception("modeling span is not support.");
+            }
         }
-        return keyMax;
+        return segmentKey;
     }
 
     /**
-     * 检查模型开关
+     * 创建实体对象
+     *
+     * @param assetId 资产id
+     * @param assetIp 资产ip
+     * @throws Exception 异常
      */
-    private void checkState() {
-        if (ConversionUtil.toBoolean(modelingParams.get(MODEL_SWITCH))) {
-            state = ServiceState.Ready;
-        } else {
-            state = ServiceState.Stopped;
-            String updateSql = "UPDATE `modeling_params` SET `model_task_status`=?, `modify_time`=? WHERE (`id`='" + modelingParams.get(MODEL_ID) + "');";
-            // 更新状态
-            DBConnectUtil.execUpdateTask(updateSql, ModelStatus.FAILED.toString().toLowerCase(), LocalDateTime.now().toString());
-        }
-    }
-
-    private void createEntityInfo(String assetId, String assetIp) {
+    private void createEntityInfo(String assetId, String assetIp) throws Exception {
         if (isFirst) {
-            String updateSql = "UPDATE `modeling_params` SET `model_task_status`=?, `modify_time`=? WHERE (`id`='" + modelingParams.get(MODEL_ID) + "');";
             // 更新状态
-            DBConnectUtil.execUpdateTask(updateSql, ModelStatus.SUCCESS.toString().toLowerCase(), LocalDateTime.now().toString());
+            updateModelTaskStatus(ModelStatus.SUCCESS);
+            //String updateSql = "UPDATE `modeling_params` SET `model_task_status`=?, `modify_time`=? WHERE (`id`='" + modelingParams.get(MODEL_ID) + "');";
+            //DbConnectUtil.execUpdateTask(updateSql, ModelStatus.SUCCESS.toString().toLowerCase(), LocalDateTime.now().toString());
         }
         AssetBehaviorSink entity = allAssetBehaviorSink.get(assetId);
-        String modelId = modelingParams.get(MODEL_ID).toString();
-        int currSegmentKey0 = this.currSegmentKey;
+        String modelId = this.modelingParams.get(MODEL_ID).toString();
+        Object currSegmentKey0 = calculateSegmentCurrKey();
         if (entity == null) {
             JSONArray dstIpSegment = new JSONArray();
             com.alibaba.fastjson.JSONObject item = new com.alibaba.fastjson.JSONObject();
             item.put("name", currSegmentKey0);
-            item.put("value", assetIp);
+            Set<String> value = new HashSet<>();
+            value.add(assetIp);
+            item.put("value", value);
             dstIpSegment.add(item);
             allAssetBehaviorSink.put(assetId, new AssetBehaviorSink(modelId, assetId, assetIp, dstIpSegment));
         } else {
@@ -201,8 +181,10 @@ public class AssetConnectionExecutive implements AssetBehaviorConstants, Seriali
             JSONArray dstIpSegment = entity.getDstIpSegment();
             for (int i = 0; i < dstIpSegment.size(); i++) {
                 com.alibaba.fastjson.JSONObject obj = (com.alibaba.fastjson.JSONObject) dstIpSegment.get(i);
-                if (StringUtil.equals(ConversionUtil.toString(obj.get("name")), currSegmentKey0 + "")) {
-                    obj.put("value", obj.get("value") + "," + assetIp);
+                if (StringUtil.equals(ConversionUtil.toString(obj.get("name")), ConversionUtil.toString(currSegmentKey0))) {
+                    Set<String> value = (Set<String>) obj.get("value");
+                    value.add(assetIp);
+                    obj.put("value", value);
                     break;
                 }
             }
@@ -212,16 +194,18 @@ public class AssetConnectionExecutive implements AssetBehaviorConstants, Seriali
 
     }
 
+    /**
+     * 查询
+     *
+     * @throws Exception
+     */
     private synchronized void searchGroupIdAtIps() throws Exception {
         Map<Integer, Map<String, Set<String>>> allGroupIps0 = new HashMap<>();
-        Connection connection = DBConnectUtil.getConnection();
-        Statement statement = connection.createStatement();
         StringBuilder whereTxt = new StringBuilder();
-        Object o = modelingParams.get(MODEL_ATTRS);
+        Object o = this.modelingParams.get(MODEL_ATTRS);
         JSONObject attrs = (JSONObject) JSONValue.parse(ConversionUtil.toString(o));
         Object modelEntityGroup = attrs.get("model_entity_group");
         if (modelEntityGroup == null) {
-            logger.error("model entity group key is not exist");
             throw new Exception("model entity group key is not exist");
         }
         String[] groupIds = ConversionUtil.toString(modelEntityGroup).split(",");
@@ -235,6 +219,8 @@ public class AssetConnectionExecutive implements AssetBehaviorConstants, Seriali
             temp = temp.substring(0, temp.length() - 1);
         }
         whereTxt.append(temp).append(");");
+        Connection connection = DbConnectUtil.getConnection();
+        Statement statement = connection.createStatement();
         ResultSet resultSet = statement.executeQuery("SELECT * FROM asset WHERE entity_groups in " + whereTxt.toString());
         while (resultSet.next()) {
             String entityId = resultSet.getString("entity_id");
@@ -257,6 +243,7 @@ public class AssetConnectionExecutive implements AssetBehaviorConstants, Seriali
                 allGroupIps0.put(areaId, map);
             }
         }
+        logger.info("modeling params group joint asset ip size : " + allGroupIps0.size() + ", data : " + allGroupIps0.toString());
         this.allAssetIps = allGroupIps0;
     }
 
@@ -273,62 +260,92 @@ public class AssetConnectionExecutive implements AssetBehaviorConstants, Seriali
         return ips;
     }
 
-    public synchronized void startThreadFunc() {
+    public void startThreadFunc() {
         if (isFirst) {
             isFirst = false;
-            String unit = modelingParams.get(MODEL_RATE_TIME_UNIT).toString();
-            int rate = ConversionUtil.toInteger(modelingParams.get(MODEL_RATE_TIME_UNIT_NUM));
-            TimeUnit timeUnit = TimeUnit.HOURS;
-            if (StringUtil.equals(unit, "dd")) {
-                timeUnit = TimeUnit.DAYS;
-            }
-            logger.info("开始定时任务.....");
-            startTimerFunc(rate, timeUnit);
+            Timer timer = new Timer();
+            Calendar currentTime = Calendar.getInstance();
+            currentTime.setTime(new Date());
+            int delay = 5 - currentTime.get(Calendar.MINUTE) % 5;
+            currentTime.set(Calendar.MINUTE, currentTime.get(Calendar.MINUTE) + delay);
+            currentTime.set(Calendar.SECOND, 0);
+            currentTime.set(Calendar.MILLISECOND, 0);
+
+            Date firstTime = currentTime.getTime();
+
+            // 每五分钟执行
+            timer.scheduleAtFixedRate(new TimerTask() {
+                @Override
+                public void run() {
+                    try {
+                        checkModelInfo();
+                    } catch (Throwable throwable) {
+                        logger.error("timer schedule at fixed rate failed ", throwable);
+                    }
+                }
+            }, firstTime, 1000 * 60 * 5);
+
+            // 每分钟执行
+            timer.scheduleAtFixedRate(new TimerTask() {
+                @Override
+                public void run() {
+                    try {
+                        calculateSegmentCurrKey();
+                        startPrepareData();
+                    } catch (Throwable throwable) {
+                        logger.error("asset behavior  schedule task failed : ", throwable);
+                    }
+                }
+            }, 1000 * 20, 1000 * 60);
         }
     }
 
-    private void startTimerFunc(int delay, TimeUnit timeUnit) {
-        System.out.println(LocalDateTime.now().toString() + " 定时任务启动 delay : " + delay + ", timeUnit " + timeUnit);
-
-        Timer timer = new Timer();
-        Calendar currentTime = Calendar.getInstance();
-        currentTime.setTime(new Date());
-        int delay0 = 5 - currentTime.get(Calendar.MINUTE) % 5;
-        currentTime.set(Calendar.MINUTE, currentTime.get(Calendar.MINUTE) + delay0);
-        currentTime.set(Calendar.SECOND, 0);
-        currentTime.set(Calendar.MILLISECOND, 0);
-
-        Date firstTime = currentTime.getTime();
-        // 每五分钟执行
-        timer.scheduleAtFixedRate(new TimerTask() {
-            @Override
-            public void run() {
-                try {
-                    checkModelInfo();
-                } catch (Throwable throwable) {
-                    logger.error("update model params task timer schedule failed ", throwable);
-                }
+    /**
+     * 检查模型各种信息
+     */
+    private void checkModelInfo() {
+        Map<String, Object> newModelingParams = ModelParamsConfigurer.buildModelingParams();
+        if (newModelingParams.isEmpty()) {
+            return;
+        }
+        boolean updateChange = modelUpdateChange(newModelingParams);
+        if (updateChange) {
+            // 更新方式发生变化
+            // 模型的更新方式:
+            // 0(false)清除历史数据更新
+            // 1(true)累计迭代历史数据更新。
+            // 模型结果的唯一性:模型分类 & 模型子类 & 频率 & 频数
+            // 更改 历史数据和置信度 更新。
+            boolean modelUpdate = ConversionUtil.toBoolean(newModelingParams.get(MODEL_UPDATE));
+            final Map<String, AssetBehaviorSink> assetBehaviorSinkMap = allAssetBehaviorSink;
+            try {
+                AssetBehaviorToDatabase.save(assetBehaviorSinkMap, newModelingParams, modelUpdate);
+            } catch (Throwable throwable) {
+                logger.error("model info[model_update :" + modelUpdate + " is changed] force flush data failed", throwable);
             }
-        }, firstTime, 1000 * 60 * 5);
 
-        // 每五分钟执行
-        timer.scheduleAtFixedRate(new TimerTask() {
-            @Override
-            public void run() {
-                try {
-                    calculateSegmentCurrKey();
-                    startPrepareData();
-                } catch (Throwable throwable) {
-                    logger.error("错误 ： " + throwable);
-                }
-            }
-        }, 1, 1000 * 60);
+        }
+
+        //建模维度变化
+        boolean modelParamsChange = modelParamsChange(newModelingParams);
+        if (modelParamsChange) {
+
+        }
     }
 
-    private void checkModelInfo() {
-        Map<String, Object> newModelingParams = AssetBehaviorBuildModelUtil.buildModelingParams();
-        modelParamsChange(newModelingParams);
-        modelUpdateChange(newModelingParams);
+    /**
+     * 检查模型开关
+     */
+    private void checkState() {
+        if (ConversionUtil.toBoolean(this.modelingParams.get(MODEL_SWITCH))) {
+            state = ServiceState.Ready;
+        } else {
+            state = ServiceState.Stopped;
+            // 更新状态
+            updateModelTaskStatus(ModelStatus.FAILED);
+            //String updateSql = "UPDATE `modeling_params` SET `model_task_status`=?, `modify_time`=? WHERE (`id`='" + modelingParams.get(MODEL_ID) + "');";
+            //DbConnectUtil.execUpdateTask(updateSql, ModelStatus.FAILED.toString().toLowerCase(), LocalDateTime.now().toString());
+        }
     }
 
     /**
@@ -359,7 +376,7 @@ public class AssetConnectionExecutive implements AssetBehaviorConstants, Seriali
         if (newModelResultSpan != null && !newModelResultSpan.equals(oldModelResultSpan)) {
             modelResultSpanFlag = true;
         }
-FASDFASDFSDFASD
+
         // 模型建模的频率 model_rate_timeunit
         boolean modelRateTimeUnitFlag = false;
         String newModelRateTimeUnit = ConversionUtil.toString(newModelingParams.get(MODEL_RATE_TIME_UNIT));
@@ -390,33 +407,41 @@ FASDFASDFSDFASD
         return false;
     }
 
-    private void startPrepareData() throws Exception {
-        final Map<String, AssetBehaviorSink> assetBehaviorSinkMap = allAssetBehaviorSink;
-        logger.info("准备数据 , size : " + assetBehaviorSinkMap.size());
-        if (assetBehaviorSinkMap.size() > 1 || lastUpdateTime < System.currentTimeMillis() - INTERVAL) {
-            Connection connection = DBConnectUtil.getConnection();
-
-            // 需要先查询是否有该模型记录
-
-
-            String sql = "insert into `model_result_asset_behavior_relation` (`modeling_params_id`,`src_id`,`src_ip`,`dst_ip_segment`,`time`) values (?,?,?,?,?)";
-            PreparedStatement ps = connection.prepareStatement(sql);
+    /**
+     * 准备数据
+     */
+    private void startPrepareData() {
+        logger.info("吼吼吼吼吼吼吼吼吼吼吼吼吼吼吼吼");
+        final Map<String, AssetBehaviorSink> assetBehaviorSinkMap = this.allAssetBehaviorSink;
+        final Map<String, Object> modelingParams0 = this.modelingParams;
+        if (assetBehaviorSinkMap.size() > 10 || lastUpdateTime < System.currentTimeMillis() - INTERVAL) {
             lastUpdateTime = System.currentTimeMillis();
-            boolean hasData = false;
-            for (AssetBehaviorSink entity : assetBehaviorSinkMap.values()) {
-                ps.setString(1, entity.getModelingParamId());
-                ps.setString(2, entity.getSrcId());
-                ps.setString(3, entity.getSrcIp());
-                ps.setString(4, entity.getDstIpSegment().toJSONString());
-                ps.setString(5, LocalDateTime.now().toString());
-                ps.execute();
-                hasData = true;
+            try {
+                logger.info("start save data of size : " + assetBehaviorSinkMap.size());
+                boolean saveResult = AssetBehaviorToDatabase.save(assetBehaviorSinkMap, modelingParams0, true);
+                if (saveResult) {
+                    allAssetBehaviorSink.clear();
+                }
+            } catch (Throwable throwable) {
+                logger.error("save data error ", throwable);
             }
-            //connection.commit();
-            if (hasData) {
-                //ps.executeBatch();
-                allAssetBehaviorSink.clear();
-            }
+        }
+    }
+
+    /**
+     * 更新建模状态
+     *
+     * @param modelStatus 状态枚举
+     */
+    private void updateModelTaskStatus(ModelStatus modelStatus) {
+        while (!modelTaskStatusLock.tryLock()) {
+        }
+        try {
+            String updateSql = "UPDATE `modeling_params` SET `model_task_status`=?, `modify_time`=? WHERE (`id`='" + modelingParams.get(MODEL_ID) + "');";
+            DbConnectUtil.execUpdateTask(updateSql, modelStatus.toString().toLowerCase(), LocalDateTime.now().toString());
+            logger.info("update model task status : " + modelStatus.name());
+        } finally {
+            modelTaskStatusLock.unlock();
         }
     }
 }

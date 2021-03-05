@@ -1,10 +1,9 @@
-package org.daijb.huat.services.utils;
+package org.daijb.huat.utils;
 
 import com.mchange.v2.c3p0.ComboPooledDataSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.swing.plaf.TableHeaderUI;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
@@ -13,16 +12,9 @@ import java.sql.SQLException;
  * @author daijb
  * @date 2021/2/9 12:04
  */
-public class DBConnectUtil {
+public class DbConnectUtil {
 
-    public static void main(String[] args) {
-        Integer a = 120;
-
-
-        System.out.println(a.equals(null));
-    }
-
-    private static final Logger logger = LoggerFactory.getLogger(DBConnectUtil.class);
+    private static final Logger logger = LoggerFactory.getLogger(DbConnectUtil.class);
 
     /**
      * 创建连接池对象
@@ -30,13 +22,13 @@ public class DBConnectUtil {
     private static ComboPooledDataSource dataSource = null;
 
     static {
-        configurer();
+        dataSourceConfigurer();
     }
 
     /**
      * 配置连接池
      */
-    private static void configurer() {
+    private static void dataSourceConfigurer() {
         try {
             //设置数据源
             dataSource = new ComboPooledDataSource();
@@ -44,9 +36,11 @@ public class DBConnectUtil {
             String addr = SystemUtil.getHostIp();
             String username = SystemUtil.getMysqlUser();
             String password = SystemUtil.getMysqlPassword();
-            dataSource.setJdbcUrl("jdbc:mysql://" + addr + ":3306/csp?useEncoding=true&characterEncoding=utf-8&serverTimezone=UTC");
+            String url = "jdbc:mysql://" + addr + ":3306/csp?useEncoding=true&characterEncoding=utf-8&serverTimezone=UTC";
+            dataSource.setJdbcUrl(url);
             dataSource.setUser(username);
             dataSource.setPassword(password);
+            logger.info("load dataSource url :" + url + " user :" + username + "/" + password);
         } catch (Exception e) {
             logger.error("get database connection failed due to ", e);
         }
@@ -55,7 +49,7 @@ public class DBConnectUtil {
     public static Connection getConnection() {
         Connection conn = null;
         if (dataSource == null) {
-            configurer();
+            dataSourceConfigurer();
         }
         try {
             conn = dataSource.getConnection();
@@ -65,6 +59,12 @@ public class DBConnectUtil {
         return conn;
     }
 
+    /**
+     * 执行一个任务
+     *
+     * @param sql    sql
+     * @param params PrepareStatement 参数
+     */
     public static void execUpdateTask(String sql, String... params) {
         Connection connection = getConnection();
         try {
@@ -87,7 +87,7 @@ public class DBConnectUtil {
             try {
                 conn.commit();
             } catch (SQLException e) {
-                logger.error("提交事物失败,Connection:" + conn, e);
+                logger.error("提交事物失败,Connection: " + conn, e);
                 close(conn);
             }
         }
@@ -96,7 +96,7 @@ public class DBConnectUtil {
     /**
      * 事物回滚
      *
-     * @param conn
+     * @deprecated
      */
     public static void rollback(Connection conn) {
         if (conn != null) {
@@ -112,7 +112,7 @@ public class DBConnectUtil {
     /**
      * 关闭连接
      */
-    public static void close(Connection conn) {
+    private static void close(Connection conn) {
         if (conn != null) {
             try {
                 conn.close();

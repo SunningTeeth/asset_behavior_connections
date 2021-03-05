@@ -1,4 +1,4 @@
-package org.daijb.huat.services.utils;
+package org.daijb.huat.utils;
 
 /**
  * @author daijb

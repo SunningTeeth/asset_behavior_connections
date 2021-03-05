@@ -3,7 +3,7 @@ package org.daijb.huat.services;
 import org.apache.flink.api.java.tuple.Tuple4;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.functions.source.RichSourceFunction;
-import org.daijb.huat.services.utils.DBConnectUtil;
+import org.daijb.huat.utils.DbConnectUtil;
 
 import java.sql.*;
 import java.sql.Connection;
@@ -22,8 +22,8 @@ public class AssetRichSourceConfigurer extends RichSourceFunction<Tuple4<String,
     @Override
     public void open(Configuration parameters) throws Exception {
         super.open(parameters);
-        connection = DBConnectUtil.getConnection();
-        String sql = "select entity_id,entity_name,asset_ip,area_id from asset";
+        connection = DbConnectUtil.getConnection();
+        String sql = "SELECT entity_id, entity_name, asset_ip, area_id FROM asset a, modeling_params m WHERE m.model_alt_params -> '$.model_entity_group' LIKE CONCAT('%', a.entity_groups,'%');";
         ps = connection.prepareStatement(sql);
     }
 
